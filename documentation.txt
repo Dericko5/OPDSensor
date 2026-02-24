@@ -1,0 +1,201 @@
+OBD-II Raspberry Pi Dashboard Real-Time Vehicle Telemetry System Using
+Bluetooth + Raspberry Pi
+
+============================================================ 1. Project
+Overview ============================================================
+
+This project is a self-contained vehicle telemetry dashboard built using
+a Raspberry Pi, a 5-inch HDMI screen, and a Bluetooth OBD-II adapter.
+
+The system connects to a vehicle’s OBD-II port and displays real-time
+engine and vehicle data such as:
+
+-   Vehicle Speed
+-   Engine RPM
+-   Coolant Temperature
+-   Throttle Position
+-   Engine Load
+
+The Raspberry Pi acts as a dedicated embedded system that:
+
+1.  Connects to the OBD-II adapter via Bluetooth
+2.  Queries live vehicle data
+3.  Displays it in a fullscreen dashboard UI
+4.  Optionally logs the data for later analysis
+
+The system auto-launches on boot, turning the Pi into a plug-and-play
+vehicle diagnostic dashboard.
+
+============================================================ 2. Project
+Goals ============================================================
+
+Core Goals: - Real-time OBD-II telemetry display - Stable Bluetooth
+communication - Clean embedded UI for a small HDMI screen - Auto-start
+functionality
+
+Engineering Goals: - Learn embedded Linux configuration - Work with
+Bluetooth serial protocols (RFCOMM / ELM327) - Use Python to interface
+with hardware - Implement fault tolerance and reconnection logic -
+Structure code into modular services
+
+Future Expansion Goals: - Trip logging & analytics - Performance metrics
+(0–60 tracking) - DTC (Diagnostic Trouble Code) reader - Check engine
+light detection - Graph-based telemetry visualization - AI-based driving
+analysis - Cloud data sync - CAN-level raw packet inspection
+
+============================================================ 3. System
+Architecture
+============================================================
+
+Car ECU ↓ OBD-II Port ↓ Bluetooth OBD Adapter (ELM327) ↓ Raspberry Pi
+(Bluetooth RFCOMM) ↓ Python OBD Service ↓ Dashboard UI (5” HDMI Display)
+
+The Raspberry Pi communicates with the OBD adapter using the ELM327
+protocol over Bluetooth. The Python backend queries vehicle PIDs
+(Parameter IDs), processes responses, and updates the UI in real time.
+
+============================================================ 4. Project
+File Structure
+============================================================
+
+obd_pi/
+
+├── app.py ├── obd_service.py ├── ui_tk.py ├── logger.py ├── config.py
+├── requirements.txt └── documentation.txt
+
+============================================================ 5.
+File-by-File Documentation
+============================================================
+
+app.py Purpose: Main application entry point
+
+Responsibilities: - Initialize the UI - Initialize the OBD service -
+Start the update loop - Manage connection status - Handle reconnection
+logic - Synchronize OBD data with the UI
+
+This file acts as the controller layer of the system.
+
+------------------------------------------------------------------------
+
+obd_service.py Purpose: Vehicle communication layer
+
+Responsibilities: - Connect to the OBD adapter - Query specific vehicle
+PIDs - Handle failed queries safely - Maintain connection state -
+Implement reconnection attempts
+
+This file abstracts all low-level OBD communication away from the UI.
+
+------------------------------------------------------------------------
+
+ui_tk.py Purpose: Dashboard user interface
+
+Responsibilities: - Build the full-screen UI - Display live telemetry
+values - Update labels dynamically - Show connection status
+
+Future enhancements may include graphs, gauge visuals, warning
+indicators, and touch interaction.
+
+------------------------------------------------------------------------
+
+logger.py (Future Expansion) Purpose: Data persistence layer
+
+Responsibilities: - Log telemetry to CSV - Store data in SQLite
+database - Track trips and sessions - Compute averages and max values
+
+------------------------------------------------------------------------
+
+config.py Purpose: Centralized configuration
+
+Contains: - Bluetooth device path - Refresh rate - Logging paths - UI
+settings
+
+------------------------------------------------------------------------
+
+requirements.txt Purpose: Dependency management
+
+Lists all Python libraries required for the project.
+
+Example: python-OBD
+
+============================================================ 6. How
+Everything Works Together
+============================================================
+
+1.  Raspberry Pi boots.
+2.  Systemd service launches app.py.
+3.  app.py initializes the UI and OBD service.
+4.  OBD service connects to /dev/rfcomm0.
+5.  A timed loop runs at a defined refresh rate:
+    -   Query vehicle PIDs
+    -   Return dictionary of values
+    -   UI updates displayed metrics
+6.  If connection fails:
+    -   System retries automatically
+    -   UI displays disconnected status
+7.  User sees live vehicle data on HDMI display.
+
+============================================================ 7.
+Raspberry Pi Requirements
+============================================================
+
+Hardware: - Raspberry Pi 4 (recommended) - 5-inch HDMI display -
+Bluetooth OBD-II adapter (ELM327 recommended) - Stable power supply -
+Optional external battery pack
+
+Software: - Raspberry Pi OS - Python 3 - Bluetooth configured - RFCOMM
+binding - Systemd service enabled
+
+============================================================ 8.
+Engineering Considerations
+============================================================
+
+Error Handling: - OBD connection may drop - Ignition off scenario -
+Unsupported PIDs - Adapter communication delays
+
+Performance: - Refresh rate balanced with OBD response time - Avoid
+overloading ELM327 with too many queries
+
+Stability: - Auto-reconnect - Systemd restart on crash - Disable screen
+sleep
+
+============================================================ 9. Future
+Roadmap ============================================================
+
+Phase 1: - Stable telemetry dashboard - Logging functionality - Clean UI
+layout
+
+Phase 2: - Graph visualization - DTC reader - Trip tracking - Fuel
+efficiency estimates
+
+Phase 3: - Performance analytics - AI driving analysis - Remote
+monitoring server - CAN bus raw packet inspection - Custom PID
+definitions
+
+============================================================ 10.
+Engineering Value
+============================================================
+
+This project demonstrates:
+
+-   Embedded systems integration
+-   Bluetooth communication protocols
+-   Hardware-software interaction
+-   Real-time data visualization
+-   Linux service configuration
+-   Modular Python architecture
+-   Fault-tolerant system design
+
+It bridges automotive systems, embedded computing, software engineering,
+real-time telemetry, and UI development.
+
+============================================================ 11.
+Long-Term Vision
+============================================================
+
+The long-term goal is to evolve this into:
+
+-   A custom digital cluster replacement
+-   A performance analytics tool
+-   A data-logging performance device
+-   A development platform for automotive experimentation
+-   A smart embedded vehicle companion system
