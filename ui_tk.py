@@ -302,10 +302,10 @@ class DashboardUI:
             row=0, column=0, sticky="nw", padx=8, pady=(6, 0),
         )
         self._speed_var = tk.StringVar(value="--")
-        spd_val = tk.Label(spd, textvariable=self._speed_var,
-                           font=(_FF, 54, "bold"), bg=C_PANEL, fg=C_SPEED)
-        spd_val.grid(row=1, column=0, sticky="nsew")
-        spd_val.bind("<Button-1>", self._toggle_speed_unit)
+        self._speed_lbl = tk.Label(spd, textvariable=self._speed_var,
+                                   font=(_FF, 54, "bold"), bg=C_PANEL, fg=C_SPEED)
+        self._speed_lbl.grid(row=1, column=0, sticky="nsew")
+        self._speed_lbl.bind("<Button-1>", self._toggle_speed_unit)
 
         self._speed_unit_lbl = tk.Label(spd, text=config.SPEED_UNIT.upper(),
                                          font=(_FF, 11), bg=C_PANEL, fg=C_TEXT_SEC)
@@ -617,9 +617,13 @@ class DashboardUI:
                 if config.SPEED_UNIT == "mph"
                 else speed.to("kph").magnitude
             )
-            self._speed_var.set(f"{mag:.0f}")
+            spd_str = f"{mag:.0f}"
+            self._speed_var.set(spd_str)
+            font_size = 54 if len(spd_str) <= 2 else (44 if len(spd_str) == 3 else 34)
+            self._speed_lbl.config(font=(_FF, font_size, "bold"))
         else:
             self._speed_var.set("--")
+            self._speed_lbl.config(font=(_FF, 54, "bold"))
 
         rpm = data.get("rpm")
         if rpm:
