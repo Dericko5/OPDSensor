@@ -78,6 +78,22 @@ def _fmt_load(raw):
     return f"{v:.0f}%", v / 100.0, color
 
 
+def _fmt_intake(raw):
+    c = raw.to("degC").magnitude
+    disp = (
+        f"{raw.to('degF').magnitude:.0f}°F"
+        if config.TEMP_UNIT == "F"
+        else f"{c:.0f}°C"
+    )
+    return disp, min(max(c + 20, 0) / 80.0, 1.0), C_NEUTRAL
+
+
+def _fmt_fuel(raw):
+    v = raw.magnitude
+    color = C_CRIT if v < 10 else (C_WARN if v < 20 else C_GOOD)
+    return f"{v:.0f}%", v / 100.0, color
+
+
 # ── Secondary panel groups ─────────────────────────────────────────────────────
 # Each group is a list of 3 tuples: (data_key, display_label, formatter_fn).
 # Tap the bottom row to cycle groups. Add more groups as new PIDs are supported.
@@ -88,12 +104,21 @@ SECONDARY_GROUPS = [
         ("throttle_pos", "THROTTLE", _fmt_throttle),
         ("engine_load",  "ENG LOAD", _fmt_load),
     ],
-    # Example second group – uncomment + add PIDs to obd_service.py to activate:
-    # [
-    #     ("intake_temp", "INTAKE",  _fmt_intake),
-    #     ("engine_load", "LOAD",    _fmt_load),
-    #     ("coolant_temp","COOLANT", _fmt_coolant),
-    # ],
+    [
+        ("intake_temp",  "INTAKE T", _fmt_intake),
+        ("fuel_level",   "FUEL",     _fmt_fuel),
+        ("engine_load",  "ENG LOAD", _fmt_load),
+    ],
+]
+
+# ── Graph metric definitions ────────────────────────────────────────────────────
+# (data_key, label, unit, y_min, y_max, color, value_extractor)
+GRAPH_METRICS = [
+    ("rpm",          "RPM",      "rpm", 0,  8000, C_RPM,     lambda r: r.magnitude),
+    ("speed",        "SPEED",    "mph", 0,  160,  C_SPEED,   lambda r: r.to("mph").magnitude),
+    ("engine_load",  "ENG LOAD", "%",   0,  100,  C_NEUTRAL, lambda r: r.magnitude),
+    ("throttle_pos", "THROTTLE", "%",   0,  100,  C_NEUTRAL, lambda r: r.magnitude),
+    ("coolant_temp", "COOLANT",  "°C",  40, 130,  C_GOOD,    lambda r: r.to("degC").magnitude),
 ]
 
 
@@ -157,10 +182,15 @@ class DashboardUI:
         self._last_dtcs_rendered: list = []
         self.dismiss_codes = None   # set by AppController after construction
 
+        self._graph_mode: bool = False
+        self._graph_metric_idx: int = 0
+        self._last_history: list = []
+
         self._build_disconnected()
         self._build_waiting()
         self._build_live()
         self._build_codes()
+        self._build_graph()
 
         self._tick_clock()
 
@@ -217,7 +247,27 @@ class DashboardUI:
         f = tk.Frame(self.root, bg=C_BG)
         self._live_frame = f
 
-        _, self._live_clock = _status_bar(f, C_GOOD, "CONNECTED")
+        bar = tk.Frame(f, bg="#000a14", height=30)
+        bar.pack(fill="x")
+        bar.pack_propagate(False)
+        tk.Label(bar, text="●", font=(_FF, 10), bg="#000a14", fg=C_GOOD).pack(
+            side="left", padx=(10, 2)
+        )
+        tk.Label(bar, text="CONNECTED", font=(_FF, 9), bg="#000a14", fg=C_GOOD).pack(
+            side="left"
+        )
+        self._live_codes_lbl = tk.Label(bar, text="", font=(_FF, 8),
+                                         bg="#000a14", fg=C_GOOD)
+        self._live_codes_lbl.pack(side="left", padx=(10, 0))
+
+        graph_btn = tk.Label(bar, text="  GRAPH  ", font=(_FF, 8, "bold"),
+                             bg=C_BORDER, fg=C_TEXT_PRI)
+        graph_btn.pack(side="right", padx=(0, 4), fill="y")
+        graph_btn.bind("<Button-1>", self._on_graph_btn)
+
+        self._live_clock = tk.Label(bar, text="", font=(_FF, 9),
+                                     bg="#000a14", fg=C_TEXT_SEC)
+        self._live_clock.pack(side="right", padx=10)
 
         main = tk.Frame(f, bg=C_BG)
         main.pack(fill="both", expand=True)
@@ -360,6 +410,47 @@ class DashboardUI:
         footer.bind("<Button-1>", self._on_codes_tap)
         self._codes_canvas.bind("<Button-1>", self._on_codes_tap)
 
+    def _build_graph(self):
+        f = tk.Frame(self.root, bg=C_BG)
+        self._graph_frame = f
+
+        # Status bar with BACK button
+        bar = tk.Frame(f, bg="#000a14", height=30)
+        bar.pack(fill="x")
+        bar.pack_propagate(False)
+
+        back_btn = tk.Label(bar, text="  ◀ BACK  ", font=(_FF, 8, "bold"),
+                            bg=C_BORDER, fg=C_TEXT_PRI)
+        back_btn.pack(side="left", padx=(4, 0), fill="y")
+        back_btn.bind("<Button-1>", self._on_graph_back)
+
+        self._graph_title = tk.Label(bar, text="", font=(_FF, 9, "bold"),
+                                      bg="#000a14", fg=C_TEXT_PRI)
+        self._graph_title.pack(side="left", padx=14)
+
+        self._graph_clock = tk.Label(bar, text="", font=(_FF, 9),
+                                      bg="#000a14", fg=C_TEXT_SEC)
+        self._graph_clock.pack(side="right", padx=10)
+
+        # Metric selector row (bottom)
+        sel = tk.Frame(f, bg="#000a14", height=36)
+        sel.pack(fill="x", side="bottom")
+        sel.pack_propagate(False)
+
+        self._graph_btns = []
+        for i, (key, label, unit, y_min, y_max, color, _ext) in enumerate(GRAPH_METRICS):
+            btn = tk.Label(sel, text=label, font=(_FF, 8, "bold"),
+                           bg=C_PANEL, fg=C_TEXT_SEC)
+            btn.pack(side="left", fill="both", expand=True,
+                     padx=(0 if i == 0 else 1, 0), pady=2)
+            btn.bind("<Button-1>", lambda e, idx=i: self._select_graph_metric(idx))
+            self._graph_btns.append(btn)
+
+        # Chart canvas (fills remaining space)
+        self._graph_canvas = tk.Canvas(f, bg=C_BG, highlightthickness=0)
+        self._graph_canvas.pack(fill="both", expand=True)
+        self._graph_canvas.bind("<Button-1>", self._on_graph_canvas_tap)
+
     # ── Public state API ───────────────────────────────────────────────────────
 
     def show_disconnected(self) -> None:
@@ -381,14 +472,26 @@ class DashboardUI:
         self._anim_wait_phase = 0
         self._animate_wait()
 
-    def show_live(self, data: dict) -> None:
-        if self._screen != "live":
-            self._hide_all()
-            self._live_frame.pack(fill="both", expand=True)
-            self._screen = "live"
-            self._start_rotation()
+    def show_live(self, data: dict, history: list, dtcs_empty: bool = False) -> None:
         self._live_data = data
-        self._refresh_live(data)
+        self._last_history = history
+        self._live_codes_lbl.config(
+            text="  ✓ NO CODES" if dtcs_empty else ""
+        )
+        if self._graph_mode:
+            if self._screen != "graph":
+                self._hide_all()
+                self._graph_frame.pack(fill="both", expand=True)
+                self._screen = "graph"
+                self._select_graph_metric(self._graph_metric_idx)
+            self._refresh_graph(history)
+        else:
+            if self._screen != "live":
+                self._hide_all()
+                self._live_frame.pack(fill="both", expand=True)
+                self._screen = "live"
+                self._start_rotation()
+            self._refresh_live(data)
 
     def show_codes(self, dtcs: list) -> None:
         if self._screen != "codes":
@@ -413,7 +516,7 @@ class DashboardUI:
                                 fg=C_WARN, width=10, anchor="w")
             code_lbl.pack(side="left", padx=(10, 0))
             desc_lbl = tk.Label(row, text=desc, font=(_FF, 10), bg=row_bg,
-                                fg=C_TEXT_PRI, anchor="w")
+                                fg=C_TEXT_PRI, anchor="w", wraplength=300)
             desc_lbl.pack(side="left", padx=(6, 0))
             row.bind("<Button-1>", self._on_codes_tap)
             code_lbl.bind("<Button-1>", self._on_codes_tap)
@@ -444,7 +547,8 @@ class DashboardUI:
     # ── Internal helpers ───────────────────────────────────────────────────────
 
     def _hide_all(self) -> None:
-        for frame in (self._disc_frame, self._wait_frame, self._live_frame, self._codes_frame):
+        for frame in (self._disc_frame, self._wait_frame, self._live_frame,
+                      self._codes_frame, self._graph_frame):
             frame.pack_forget()
         if self._anim_after:
             self.root.after_cancel(self._anim_after)
@@ -545,6 +649,127 @@ class DashboardUI:
     def _on_codes_canvas_configure(self, event=None):
         self._codes_canvas.itemconfig(self._codes_canvas_window, width=event.width)
 
+    # ── Graph handlers ─────────────────────────────────────────────────────────
+
+    def _on_graph_btn(self, _event=None) -> None:
+        self._graph_mode = True
+        self._hide_all()
+        self._graph_frame.pack(fill="both", expand=True)
+        self._screen = "graph"
+        self._select_graph_metric(self._graph_metric_idx)
+        self._refresh_graph(self._last_history)
+
+    def _on_graph_back(self, _event=None) -> None:
+        self._graph_mode = False
+        self._hide_all()
+        self._live_frame.pack(fill="both", expand=True)
+        self._screen = "live"
+        self._start_rotation()
+        self._refresh_live(self._live_data)
+
+    def _on_graph_canvas_tap(self, _event=None) -> None:
+        self._select_graph_metric((self._graph_metric_idx + 1) % len(GRAPH_METRICS))
+
+    def _select_graph_metric(self, idx: int) -> None:
+        self._graph_metric_idx = idx
+        _, label, *_ = GRAPH_METRICS[idx]
+        self._graph_title.config(text=label)
+        for i, btn in enumerate(self._graph_btns):
+            btn.config(
+                bg=C_BORDER if i == idx else C_PANEL,
+                fg=C_TEXT_PRI if i == idx else C_TEXT_SEC,
+            )
+        self._refresh_graph(self._last_history)
+
+    def _refresh_graph(self, history: list) -> None:
+        canvas = self._graph_canvas
+        canvas.update_idletasks()
+        w = canvas.winfo_width()
+        h = canvas.winfo_height()
+        if w < 10 or h < 10:
+            self.root.after(100, lambda: self._refresh_graph(history))
+            return
+
+        canvas.delete("all")
+        canvas.create_rectangle(0, 0, w, h, fill=C_BG, outline="")
+
+        key, label, unit, y_min, y_max, color, extractor = GRAPH_METRICS[self._graph_metric_idx]
+
+        # Extract numeric values from history snapshots
+        values = []
+        for snapshot in history:
+            raw = snapshot.get(key)
+            if raw is None:
+                values.append(None)
+            else:
+                try:
+                    values.append(extractor(raw))
+                except Exception:
+                    values.append(None)
+
+        valid = [v for v in values if v is not None]
+        if not valid:
+            canvas.create_text(w // 2, h // 2,
+                               text="No data for this metric yet",
+                               font=(_FF, 12), fill=C_TEXT_DIM)
+            return
+
+        # Dynamic Y range clamped to metric limits
+        spread = max(valid) - min(valid)
+        margin = max(spread * 0.1, 1)
+        y_lo = max(y_min, min(valid) - margin)
+        y_hi = min(y_max, max(valid) + margin)
+        if y_hi - y_lo < 1:
+            mid = (y_lo + y_hi) / 2
+            y_lo, y_hi = mid - 0.5, mid + 0.5
+
+        pad_l, pad_r, pad_t, pad_b = 46, 12, 12, 20
+        cw = w - pad_l - pad_r
+        ch = h - pad_t - pad_b
+
+        # Chart background
+        canvas.create_rectangle(pad_l, pad_t, pad_l + cw, pad_t + ch,
+                                 fill=C_PANEL, outline=C_BORDER)
+
+        # Horizontal gridlines + Y labels
+        for i in range(5):
+            frac = i / 4
+            y_val = y_lo + (y_hi - y_lo) * frac
+            y_px = pad_t + ch - int(ch * frac)
+            canvas.create_line(pad_l, y_px, pad_l + cw, y_px,
+                               fill=C_BORDER, width=1)
+            canvas.create_text(pad_l - 3, y_px, text=f"{y_val:.0f}",
+                               font=(_FF, 7), fill=C_TEXT_DIM, anchor="e")
+
+        # Time axis labels
+        canvas.create_text(pad_l + 2, pad_t + ch + 9,
+                           text="← older", font=(_FF, 7), fill=C_TEXT_DIM, anchor="w")
+        canvas.create_text(pad_l + cw - 2, pad_t + ch + 9,
+                           text="now →", font=(_FF, 7), fill=C_TEXT_DIM, anchor="e")
+
+        # Data line
+        n = len(values)
+        coords = []
+        for i, v in enumerate(values):
+            if v is None:
+                continue
+            x = pad_l + int(cw * i / max(n - 1, 1))
+            frac_y = (max(y_lo, min(y_hi, v)) - y_lo) / (y_hi - y_lo)
+            y = pad_t + ch - int(ch * frac_y)
+            coords.extend([x, y])
+        if len(coords) >= 4:
+            canvas.create_line(coords, fill=color, width=2,
+                               capstyle="round", joinstyle="round")
+
+        # Current value overlay (top-right of chart)
+        canvas.create_text(pad_l + cw - 4, pad_t + 6,
+                           text=f"{valid[-1]:.0f} {unit}",
+                           font=(_FF, 18, "bold"), fill=color, anchor="ne")
+
+        # Metric label (top-left of chart)
+        canvas.create_text(pad_l + 4, pad_t + 6,
+                           text=label, font=(_FF, 8), fill=C_TEXT_SEC, anchor="nw")
+
     # ── Clock ──────────────────────────────────────────────────────────────────
 
     def _tick_clock(self) -> None:
@@ -552,4 +777,5 @@ class DashboardUI:
         self._wait_clock.config(text=now)
         self._live_clock.config(text=now)
         self._codes_clock.config(text=now)
+        self._graph_clock.config(text=now)
         self.root.after(1000, self._tick_clock)

@@ -20,6 +20,8 @@ class OBDService:
         "coolant_temp": obd.commands.COOLANT_TEMP,
         "throttle_pos": obd.commands.THROTTLE_POS,
         "engine_load":  obd.commands.ENGINE_LOAD,
+        "intake_temp":  obd.commands.INTAKE_TEMP,
+        "fuel_level":   obd.commands.FUEL_LEVEL,
     }
 
     def __init__(self, port: str):
