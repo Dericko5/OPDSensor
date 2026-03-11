@@ -1,7 +1,7 @@
 # config.py  –  Centralized configuration for the OBD Dashboard
 
 # ── OBD Connection ─────────────────────────────────────────────────────────────
-BLUETOOTH_RFCOMM_DEVICE = "/dev/rfcomm0"
+OBD_DEVICE = "/dev/ttyUSB0"   # USB ELM327 adapter (change to ttyACM0 if needed)
 
 # ELM327 adapters are slow. 2 Hz is realistic for 5 PIDs; raise carefully.
 OBD_POLL_HZ    = 2     # How often the background thread queries the adapter

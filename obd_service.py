@@ -1,4 +1,4 @@
-# obd_service.py  –  Vehicle communication layer (OBD-II via ELM327 / RFCOMM)
+# obd_service.py  –  Vehicle communication layer (OBD-II via ELM327 / USB)
 
 import obd
 

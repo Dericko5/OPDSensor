@@ -19,7 +19,7 @@ import time
 import tkinter as tk
 
 from config import (
-    BLUETOOTH_RFCOMM_DEVICE,
+    OBD_DEVICE,
     OBD_POLL_HZ, UI_REFRESH_HZ, RECONNECT_DELAY_S,
     LOG_ENABLED,
 )
@@ -33,7 +33,7 @@ class AppController:
         self.root = tk.Tk()
         self.ui   = DashboardUI(self.root)
         self.ui.dismiss_codes = self._on_dismiss_codes
-        self.obd  = OBDService(BLUETOOTH_RFCOMM_DEVICE)
+        self.obd  = OBDService(OBD_DEVICE)
         self.logger = DataLogger() if LOG_ENABLED else None
 
         # Shared state (protected by _lock)
@@ -70,7 +70,7 @@ class AppController:
                     self._state = "disconnected"
                     self._data  = {}
                     self._dtcs  = []
-                # Wait before retrying so we don't hammer /dev/rfcomm0
+                # Wait before retrying so we don't hammer the USB port
                 time.sleep(RECONNECT_DELAY_S)
                 continue
 

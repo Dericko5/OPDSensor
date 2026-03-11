@@ -25,7 +25,7 @@ from datetime import datetime
 
 import config
 from config import (
-    BLUETOOTH_RFCOMM_DEVICE,
+    OBD_DEVICE,
     C_BG, C_PANEL, C_BORDER,
     C_TEXT_PRI, C_TEXT_SEC, C_TEXT_DIM,
     C_SPEED, C_RPM, C_GOOD, C_WARN, C_CRIT, C_NEUTRAL,
@@ -182,9 +182,9 @@ class DashboardUI:
 
         tk.Label(center, text="NO OBD CONNECTION",
                  font=(_FF, 16, "bold"), bg=C_BG, fg=C_CRIT).pack()
-        tk.Label(center, text="Bluetooth adapter not found",
+        tk.Label(center, text="USB OBD adapter not found",
                  font=(_FF, 10), bg=C_BG, fg=C_TEXT_SEC).pack(pady=(6, 2))
-        tk.Label(center, text=BLUETOOTH_RFCOMM_DEVICE,
+        tk.Label(center, text=OBD_DEVICE,
                  font=(_FF, 9), bg=C_BG, fg=C_TEXT_DIM).pack()
 
         self._disc_retry = tk.Label(center, text="Retrying  ○○○",
