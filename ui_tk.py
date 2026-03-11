@@ -118,7 +118,7 @@ GRAPH_METRICS = [
     ("speed",        "SPEED",    "mph", 0,  160,  C_SPEED,   lambda r: r.to("mph").magnitude),
     ("engine_load",  "ENG LOAD", "%",   0,  100,  C_NEUTRAL, lambda r: r.magnitude),
     ("throttle_pos", "THROTTLE", "%",   0,  100,  C_NEUTRAL, lambda r: r.magnitude),
-    ("coolant_temp", "COOLANT",  "°C",  40, 130,  C_GOOD,    lambda r: r.to("degC").magnitude),
+    ("fuel_level",   "FUEL",     "%",   0,  100,  C_GOOD,    lambda r: r.magnitude),
 ]
 
 
