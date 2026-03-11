@@ -17,11 +17,15 @@ class OBDService:
     _CMDS = {
         "rpm":          obd.commands.RPM,
         "speed":        obd.commands.SPEED,
-        "coolant_temp": obd.commands.COOLANT_TEMP,
         "throttle_pos": obd.commands.THROTTLE_POS,
         "engine_load":  obd.commands.ENGINE_LOAD,
         "intake_temp":  obd.commands.INTAKE_TEMP,
         "fuel_level":   obd.commands.FUEL_LEVEL,
+        "timing_adv":   obd.commands.TIMING_ADVANCE,
+        "short_fuel_t": obd.commands.SHORT_FUEL_TRIM_1,
+        "long_fuel_t":  obd.commands.LONG_FUEL_TRIM_1,
+        "maf":          obd.commands.MAF,
+        "run_time":     obd.commands.RUN_TIME,
     }
 
     def __init__(self, port: str):

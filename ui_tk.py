@@ -29,7 +29,6 @@ from config import (
     C_BG, C_PANEL, C_BORDER,
     C_TEXT_PRI, C_TEXT_SEC, C_TEXT_DIM,
     C_SPEED, C_RPM, C_GOOD, C_WARN, C_CRIT, C_NEUTRAL,
-    COOLANT_WARN_C, COOLANT_CRIT_C,
     RPM_MAX, RPM_WARN, RPM_CRIT,
     ROTATION_INTERVAL_S, FULLSCREEN,
 )
@@ -47,25 +46,7 @@ def _rpm_color(val: float) -> str:
     return C_RPM
 
 
-def _coolant_color(val_c: float) -> str:
-    if val_c >= COOLANT_CRIT_C:
-        return C_CRIT
-    if val_c >= COOLANT_WARN_C:
-        return C_WARN
-    return C_GOOD
-
-
 # ── Metric formatters  (raw: pint Quantity) → (display_str, 0-1 pct, color) ──
-
-def _fmt_coolant(raw):
-    c = raw.to("degC").magnitude
-    disp = (
-        f"{raw.to('degF').magnitude:.0f}°F"
-        if config.TEMP_UNIT == "F"
-        else f"{c:.0f}°C"
-    )
-    return disp, min(c / 120.0, 1.0), _coolant_color(c)
-
 
 def _fmt_throttle(raw):
     v = raw.magnitude
@@ -94,20 +75,48 @@ def _fmt_fuel(raw):
     return f"{v:.0f}%", v / 100.0, color
 
 
+def _fmt_timing(raw):
+    v = raw.magnitude   # degrees advance
+    color = C_WARN if v < 0 else C_GOOD
+    return f"{v:.0f}°", min(max(v / 45.0, 0.0), 1.0), color
+
+
+def _fmt_fuel_trim(raw):
+    v = raw.magnitude   # percent; healthy = near 0
+    color = C_GOOD if abs(v) < 10 else (C_WARN if abs(v) < 20 else C_CRIT)
+    return f"{v:+.1f}%", min(max((v + 25) / 50.0, 0.0), 1.0), color
+
+
+def _fmt_maf(raw):
+    v = raw.magnitude   # g/s
+    return f"{v:.1f} g/s", min(v / 80.0, 1.0), C_NEUTRAL
+
+
+def _fmt_run_time(raw):
+    secs = int(raw.to("second").magnitude)
+    mins, s = divmod(secs, 60)
+    return f"{mins:02d}:{s:02d}", min(secs / 3600.0, 1.0), C_NEUTRAL
+
+
 # ── Secondary panel groups ─────────────────────────────────────────────────────
 # Each group is a list of 3 tuples: (data_key, display_label, formatter_fn).
-# Tap the bottom row to cycle groups. Add more groups as new PIDs are supported.
+# Tap the bottom row to cycle through groups.
 
 SECONDARY_GROUPS = [
-    [
-        ("coolant_temp", "COOLANT",  _fmt_coolant),
+    [   # Page 1 – core vitals
+        ("fuel_level",   "FUEL",     _fmt_fuel),
         ("throttle_pos", "THROTTLE", _fmt_throttle),
         ("engine_load",  "ENG LOAD", _fmt_load),
     ],
-    [
+    [   # Page 2 – air & ignition
         ("intake_temp",  "INTAKE T", _fmt_intake),
-        ("fuel_level",   "FUEL",     _fmt_fuel),
-        ("engine_load",  "ENG LOAD", _fmt_load),
+        ("timing_adv",   "TIMING",   _fmt_timing),
+        ("short_fuel_t", "S TRIM",   _fmt_fuel_trim),
+    ],
+    [   # Page 3 – flow & history
+        ("maf",          "AIR FLOW", _fmt_maf),
+        ("long_fuel_t",  "L TRIM",   _fmt_fuel_trim),
+        ("run_time",     "RUN TIME", _fmt_run_time),
     ],
 ]
 
