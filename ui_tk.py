@@ -101,7 +101,7 @@ def _draw_bar(canvas: tk.Canvas, pct: float, color: str) -> None:
     if w < 4:
         return
     canvas.delete("all")
-    canvas.create_rectangle(0, 0, w, h, fill="#1c1c1c", outline="")
+    canvas.create_rectangle(0, 0, w, h, fill="#0a1a2e", outline="")
     fill_w = max(0, min(int(w * pct), w))
     if fill_w > 0:
         canvas.create_rectangle(0, 0, fill_w, h, fill=color, outline="")
@@ -123,18 +123,18 @@ def _status_bar(parent: tk.Widget, dot_color: str, label_text: str) -> tuple:
     Build a 40 px status bar.
     Returns (bar_frame, clock_label) so callers can update the clock.
     """
-    bar = tk.Frame(parent, bg="#0d0d0d", height=40)
+    bar = tk.Frame(parent, bg="#000a14", height=40)
     bar.pack(fill="x")
     bar.pack_propagate(False)
 
-    tk.Label(bar, text="●", font=(_FF, 14), bg="#0d0d0d", fg=dot_color).pack(
+    tk.Label(bar, text="●", font=(_FF, 14), bg="#000a14", fg=dot_color).pack(
         side="left", padx=(14, 2)
     )
-    tk.Label(bar, text=label_text, font=(_FF, 12), bg="#0d0d0d", fg=dot_color).pack(
+    tk.Label(bar, text=label_text, font=(_FF, 12), bg="#000a14", fg=dot_color).pack(
         side="left"
     )
 
-    clock_lbl = tk.Label(bar, text="", font=(_FF, 13), bg="#0d0d0d", fg=C_TEXT_SEC)
+    clock_lbl = tk.Label(bar, text="", font=(_FF, 13), bg="#000a14", fg=C_TEXT_SEC)
     clock_lbl.pack(side="right", padx=14)
 
     return bar, clock_lbl
@@ -155,11 +155,14 @@ class DashboardUI:
         self._rotation_after = None
         self._rotation_idx   = 0
         self._live_data: dict = {}
+        self._last_dtcs_rendered: list = []
+        self.dismiss_codes = None   # set by AppController after construction
 
-        # Build all three screen frames (hidden until needed)
+        # Build all screen frames (hidden until needed)
         self._build_disconnected()
         self._build_waiting()
         self._build_live()
+        self._build_codes()
 
         # Clock runs independently of screen state
         self._tick_clock()
@@ -177,7 +180,7 @@ class DashboardUI:
         cv = tk.Canvas(center, width=100, height=100, bg=C_BG, highlightthickness=0)
         cv.pack(pady=(0, 22))
         # Static outer track
-        cv.create_oval(10, 10, 90, 90, outline="#2a0000", width=3)
+        cv.create_oval(10, 10, 90, 90, outline="#001a3a", width=3)
         # Animated ring and X
         self._disc_ring = cv.create_oval(10, 10, 90, 90, outline=C_CRIT, width=5)
         self._disc_x    = cv.create_text(50, 50, text="✕", font=(_FF, 30, "bold"), fill=C_CRIT)
@@ -293,7 +296,7 @@ class DashboardUI:
         )
         self._rpm_lbl.grid(row=1, column=0, sticky="nsew")
 
-        self._rpm_bar = tk.Canvas(rpm, height=10, bg="#1c1c1c", highlightthickness=0)
+        self._rpm_bar = tk.Canvas(rpm, height=10, bg="#0a1a2e", highlightthickness=0)
         self._rpm_bar.grid(row=2, column=0, sticky="ew", padx=14, pady=(4, 14))
 
         # ── Bottom row (rotating metric panels) ───────────────────────────────
@@ -318,10 +321,66 @@ class DashboardUI:
             val_lbl = tk.Label(p, text="--", font=(_FF, 34, "bold"), bg=C_PANEL, fg=C_TEXT_PRI)
             val_lbl.grid(row=1, column=0, sticky="nsew")
 
-            bar = tk.Canvas(p, height=6, bg="#1c1c1c", highlightthickness=0)
+            bar = tk.Canvas(p, height=6, bg="#0a1a2e", highlightthickness=0)
             bar.grid(row=2, column=0, sticky="ew", padx=10, pady=(0, 10))
 
             self._metric_widgets.append((title_lbl, val_lbl, bar))
+
+    def _build_codes(self):
+        f = tk.Frame(self.root, bg=C_BG)
+        self._codes_frame = f
+
+        # Status bar (amber)
+        bar = tk.Frame(f, bg="#000a14", height=40)
+        bar.pack(fill="x")
+        bar.pack_propagate(False)
+        tk.Label(bar, text="⚠", font=(_FF, 14), bg="#000a14", fg=C_WARN).pack(
+            side="left", padx=(14, 2)
+        )
+        tk.Label(bar, text="FAULT CODES DETECTED", font=(_FF, 12), bg="#000a14", fg=C_WARN).pack(
+            side="left"
+        )
+        self._codes_clock = tk.Label(bar, text="", font=(_FF, 13), bg="#000a14", fg=C_TEXT_SEC)
+        self._codes_clock.pack(side="right", padx=14)
+
+        # Column headers
+        hdr = tk.Frame(f, bg=C_PANEL, height=30)
+        hdr.pack(fill="x", padx=6, pady=(6, 0))
+        hdr.pack_propagate(False)
+        tk.Label(hdr, text="CODE", font=(_FF, 11, "bold"), bg=C_PANEL, fg=C_TEXT_SEC,
+                 width=12, anchor="w").pack(side="left", padx=(14, 0))
+        tk.Label(hdr, text="DESCRIPTION", font=(_FF, 11, "bold"), bg=C_PANEL, fg=C_TEXT_SEC,
+                 anchor="w").pack(side="left", padx=(8, 0))
+
+        # Scrollable code list
+        list_container = tk.Frame(f, bg=C_BG)
+        list_container.pack(fill="both", expand=True, padx=6, pady=(2, 0))
+
+        self._codes_canvas = tk.Canvas(list_container, bg=C_BG, highlightthickness=0)
+        scrollbar = tk.Scrollbar(list_container, orient="vertical",
+                                 command=self._codes_canvas.yview)
+        self._codes_canvas.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side="right", fill="y")
+        self._codes_canvas.pack(side="left", fill="both", expand=True)
+
+        self._codes_list_frame = tk.Frame(self._codes_canvas, bg=C_BG)
+        self._codes_canvas_window = self._codes_canvas.create_window(
+            (0, 0), window=self._codes_list_frame, anchor="nw"
+        )
+        self._codes_list_frame.bind("<Configure>", self._on_codes_frame_configure)
+        self._codes_canvas.bind("<Configure>", self._on_codes_canvas_configure)
+
+        # Footer
+        footer = tk.Label(
+            f, text="Tap anywhere to return to live view",
+            font=(_FF, 12), bg=C_BG, fg=C_TEXT_SEC,
+        )
+        footer.pack(pady=(4, 8))
+
+        # Tap-to-dismiss bindings
+        f.bind("<Button-1>", self._on_codes_tap)
+        footer.bind("<Button-1>", self._on_codes_tap)
+        self._codes_canvas.bind("<Button-1>", self._on_codes_tap)
 
     # ── Public state API ───────────────────────────────────────────────────────
 
@@ -353,10 +412,46 @@ class DashboardUI:
         self._live_data = data
         self._refresh_live(data)
 
+    def show_codes(self, dtcs: list) -> None:
+        if self._screen != "codes":
+            self._hide_all()
+            self._codes_frame.pack(fill="both", expand=True)
+            self._screen = "codes"
+            self._last_dtcs_rendered = []   # force rebuild on first show
+
+        if dtcs == self._last_dtcs_rendered:
+            return   # nothing changed, skip rebuild
+        self._last_dtcs_rendered = list(dtcs)
+
+        for widget in self._codes_list_frame.winfo_children():
+            widget.destroy()
+
+        for i, (code, desc) in enumerate(dtcs):
+            row_bg = C_PANEL if i % 2 == 0 else C_BG
+            row = tk.Frame(self._codes_list_frame, bg=row_bg, height=44)
+            row.pack(fill="x")
+            row.pack_propagate(False)
+            code_lbl = tk.Label(row, text=code, font=(_FF, 14, "bold"), bg=row_bg,
+                                fg=C_WARN, width=12, anchor="w")
+            code_lbl.pack(side="left", padx=(14, 0))
+            desc_lbl = tk.Label(row, text=desc, font=(_FF, 13), bg=row_bg,
+                                fg=C_TEXT_PRI, anchor="w")
+            desc_lbl.pack(side="left", padx=(8, 0))
+            row.bind("<Button-1>", self._on_codes_tap)
+            code_lbl.bind("<Button-1>", self._on_codes_tap)
+            desc_lbl.bind("<Button-1>", self._on_codes_tap)
+
+        if not dtcs:
+            tk.Label(
+                self._codes_list_frame,
+                text="No fault codes stored.",
+                font=(_FF, 14), bg=C_BG, fg=C_TEXT_DIM,
+            ).pack(pady=20)
+
     # ── Internal: screen switching ─────────────────────────────────────────────
 
     def _hide_all(self) -> None:
-        for frame in (self._disc_frame, self._wait_frame, self._live_frame):
+        for frame in (self._disc_frame, self._wait_frame, self._live_frame, self._codes_frame):
             frame.pack_forget()
         if self._anim_after:
             self.root.after_cancel(self._anim_after)
@@ -375,7 +470,7 @@ class DashboardUI:
         # Ring pulse: alternate bright ↔ dim every 8 ticks (≈ 400 ms on/off)
         self._anim_disc_phase = (self._anim_disc_phase + 1) % 16
         bright = self._anim_disc_phase < 8
-        ring_c = C_CRIT if bright else "#3a0000"
+        ring_c = C_CRIT if bright else "#001a3a"
         self._disc_cv.itemconfig(self._disc_ring, outline=ring_c)
         self._disc_cv.itemconfig(self._disc_x, fill=ring_c)
 
@@ -394,8 +489,8 @@ class DashboardUI:
         self._anim_wait_phase = (self._anim_wait_phase + 1) % 40
         # Triangle wave: 0→20→0 maps to dim→bright→dim
         t = abs(self._anim_wait_phase - 20) / 20.0   # 1.0 (dim) → 0.0 (bright)
-        g = int(0x33 + (0xcc - 0x33) * (1.0 - t))
-        color = f"#00{g:02x}44"
+        b = int(0x33 + (0xcc - 0x33) * (1.0 - t))
+        color = f"#0044{b:02x}"
         self._wait_cv.itemconfig(self._wait_ring, outline=color)
         self._wait_cv.itemconfig(self._wait_dot,  fill=color)
 
@@ -458,10 +553,23 @@ class DashboardUI:
                 val_lbl.config(text=disp, fg=color)
                 _draw_bar(bar, pct, color)
 
+    # ── Codes screen helpers ───────────────────────────────────────────────────
+
+    def _on_codes_tap(self, event=None):
+        if self.dismiss_codes:
+            self.dismiss_codes()
+
+    def _on_codes_frame_configure(self, event=None):
+        self._codes_canvas.configure(scrollregion=self._codes_canvas.bbox("all"))
+
+    def _on_codes_canvas_configure(self, event=None):
+        self._codes_canvas.itemconfig(self._codes_canvas_window, width=event.width)
+
     # ── Clock ──────────────────────────────────────────────────────────────────
 
     def _tick_clock(self) -> None:
         now = datetime.now().strftime("%H:%M:%S")
         self._wait_clock.config(text=now)
         self._live_clock.config(text=now)
+        self._codes_clock.config(text=now)
         self.root.after(1000, self._tick_clock)

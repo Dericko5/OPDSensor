@@ -69,6 +69,22 @@ class OBDService:
         except Exception:
             return None
 
+    def read_dtcs(self) -> list:
+        """
+        Query stored Diagnostic Trouble Codes.
+        Returns a list of (code_str, description_str) tuples.
+        Returns an empty list if not connected, no codes, or any error.
+        """
+        if not self.connection or not self.connection.is_connected():
+            return []
+        try:
+            r = self.connection.query(obd.commands.GET_DTC)
+            if r.is_null() or not r.value:
+                return []
+            return [(str(code), str(desc)) for code, desc in r.value]
+        except Exception:
+            return []
+
     def read_snapshot(self) -> dict:
         """
         Query all configured PIDs in one pass.

@@ -34,21 +34,21 @@ RPM_CRIT = 6500        # Red critical above this
 # Set to 0 to disable rotation and always show the first group.
 ROTATION_INTERVAL_S = 8
 
-# ── Dark Automotive Color Palette ─────────────────────────────────────────────
-C_BG       = "#0a0a0a"   # Window / outer background
-C_PANEL    = "#141414"   # Card / panel background
-C_BORDER   = "#252525"   # Panel border / separator
+# ── Blue / Black Color Palette ────────────────────────────────────────────────
+C_BG       = "#000a14"   # Near-black with blue tint
+C_PANEL    = "#0a1a2e"   # Dark navy
+C_BORDER   = "#1a3a5c"   # Navy blue border
 
-C_TEXT_PRI = "#f0f0f0"   # Primary text (white)
-C_TEXT_SEC = "#888888"   # Secondary / label text (grey)
-C_TEXT_DIM = "#444444"   # Dimmed text (dark grey)
+C_TEXT_PRI = "#e8f4ff"   # Slightly blue-white
+C_TEXT_SEC = "#6a90b8"   # Muted steel blue
+C_TEXT_DIM = "#1e3a5a"   # Dark muted blue
 
-C_SPEED    = "#00bfff"   # Speed value (bright blue)
-C_RPM      = "#ff6b00"   # RPM value  (orange)
-C_GOOD     = "#00cc66"   # OK / connected (green)
-C_WARN     = "#ffcc00"   # Warning        (amber)
-C_CRIT     = "#ff3333"   # Critical       (red)
-C_NEUTRAL  = "#aaaaaa"   # Neutral metric (light grey)
+C_SPEED    = "#00c8ff"   # Electric cyan-blue
+C_RPM      = "#3d8bff"   # Medium blue
+C_GOOD     = "#0099ff"   # Blue (connected / OK)
+C_WARN     = "#ffcc00"   # Amber (keep — universal warning)
+C_CRIT     = "#ff3333"   # Red   (keep — universal critical)
+C_NEUTRAL  = "#5588aa"   # Blue-grey neutral
 
 # ── GPIO Physical Buttons (Optional) ──────────────────────────────────────────
 #
