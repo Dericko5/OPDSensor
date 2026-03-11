@@ -13,8 +13,8 @@ LOG_CSV_PATH = "logs/drive.csv"
 LOG_ENABLED  = True
 
 # ── Display ────────────────────────────────────────────────────────────────────
-SCREEN_W   = 800
-SCREEN_H   = 480
+SCREEN_W   = 480
+SCREEN_H   = 320
 FULLSCREEN = True
 
 # ── Units ──────────────────────────────────────────────────────────────────────
